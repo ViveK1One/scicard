@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html[data-mode="light"][data-accent="graphite"] {
+  --paper: #f7f6f3;
+  --surface: #ffffff;
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --border: #e2e0db;
+  --accent: #1a1a1a;
+  --accent-soft: #f0eeea;
+  --footer: #f7f6f3;
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+body {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+/* KaTeX inside SciCard preview */
+.scicard-katex .katex {
+  color: var(--ink);
+  font-size: 1.15em;
+}
+
+.scicard-katex .katex-display {
+  margin: 0;
+}
+
+/* Export-only KaTeX host: never scroll/clip */
+.scicard-katex-export,
+.scicard-katex-export .katex,
+.scicard-katex-export .katex-display,
+.scicard-katex-export .katex-html {
+  overflow: visible !important;
+}
+
+.scicard-katex-export .katex-display > .katex {
+  white-space: nowrap;
+}
+
+/* In-card Teach me thinking state */
+.scicard-teach-skel {
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft) 0%,
+    var(--border) 45%,
+    var(--accent-soft) 100%
+  );
+  background-size: 200% 100%;
+  animation: scicard-teach-shimmer 1.35s ease-in-out infinite;
+}
+
+.scicard-teach-dots span {
+  animation: scicard-teach-dot 1.2s ease-in-out infinite;
+  opacity: 0.35;
+}
+
+.scicard-teach-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.scicard-teach-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes scicard-teach-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes scicard-teach-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

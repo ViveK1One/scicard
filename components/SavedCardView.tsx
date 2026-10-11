@@ -1,0 +1,75 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import CardPreview from "@/components/CardPreview";
+import type { CardRecord } from "@/lib/cardRecord";
+import { getAspectRatio } from "@/lib/aspectRatios";
+import { applyThemeToDocument } from "@/lib/themes";
+
+export default function SavedCardView({ id }: { id: string }) {
+  const [card, setCard] = useState<CardRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const res = await fetch(`/api/cards/${id}`);
+      const data = (await res.json()) as { card?: CardRecord; error?: string };
+      if (cancelled) return;
+      if (!res.ok || !data.card) {
+        setError(data.error || "Card not found");
+        return;
+      }
+      setCard(data.card);
+      applyThemeToDocument(data.card.themeMode, data.card.themeAccent);
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (error) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-16">
+        <p className="text-sm text-red-700/80">{error}</p>
+        <Link href="/" className="mt-4 inline-block text-sm underline">
+          Back to SciCard
+        </Link>
+      </main>
+    );
+  }
+
+  if (!card) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-16">
+        <p className="text-sm text-[var(--muted)]">Loading card…</p>
+      </main>
+    );
+  }
+
+  const aspect = getAspectRatio(card.aspectRatioId);
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 bg-[var(--paper)] px-6 py-10 text-[var(--ink)]">
+      <div className="flex items-center justify-between gap-4">
+        <Link href="/" className="text-sm font-semibold tracking-tight">
+          SciCard
+        </Link>
+        <Link
+          href={`/?card=${card.id}`}
+          className="text-xs text-[var(--muted)] underline-offset-2 hover:underline"
+        >
+          Open in editor
+        </Link>
+      </div>
+      <CardPreview
+        contentType={card.contentType}
+        input={card.input}
+        explanation={card.explanation}
+        aspectRatio={aspect.css}
+      />
+    </main>
+  );
+}
