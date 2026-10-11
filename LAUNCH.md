@@ -1,122 +1,115 @@
-# SciCard — free soft-launch guide
+# SciCard launch
 
-End-to-end checklist to put SciCard on the internet without paid infra (hobby tiers).
+Public launch: the Next.js app on Vercel, chemistry on Railway or Render, cards in Neon Postgres, rate limits in Upstash Redis.
 
-## What you are deploying
+## Required environment variables
 
-| Piece | Role | Free host |
-|--------|------|-----------|
-| Next.js app | UI + `/api/explain` + `/api/export` + chem proxy | **Vercel** |
-| Groq | Teach me LLM | Groq free tier key |
-| Chem service | RDKit SMILES → SVG | **Railway / Render / Fly** (or defer chemistry) |
+Set these on Vercel for Production and Preview. Copy names from `.env.example`.
 
-## 1. Secure secrets first
+| Name | Required in production | Purpose |
+|------|------------------------|---------|
+| `GROQ_API_KEY` | yes | Teach me. Server only. |
+| `GROQ_MODEL` | no | Default `llama-3.3-70b-versatile` |
+| `DATABASE_URL` | yes | Neon Postgres connection string |
+| `UPSTASH_REDIS_REST_URL` | yes | Rate limit, explanation cache, usage counts |
+| `UPSTASH_REDIS_REST_TOKEN` | yes | Upstash token |
+| `CHEM_SERVICE_URL` | for reactions | Public HTTPS URL of the chem host, no trailing slash |
+| `CHEM_SERVICE_SECRET` | when chem is public | Same value on Vercel and the chem host |
+| `USAGE_STATS_TOKEN` | recommended | Gates `GET /api/health?stats=1&token=` |
+| `IMPRESSUM_NAME` | yes, before public traffic | Operator name |
+| `IMPRESSUM_ADDRESS` | yes, before public traffic | Postal address. Use `\n` between lines |
+| `IMPRESSUM_EMAIL` | yes, before public traffic | Contact email |
+| `SENTRY_DSN` | optional | Server error tracking |
+| `NEXT_PUBLIC_SENTRY_DSN` | optional | Same DSN, for browser errors |
 
-1. **Rotate `GROQ_API_KEY`** if it was ever pasted in chat, screenshots, or commits.
-2. Copy `.env.example` → `.env.local` locally. Never commit `.env` / `.env.local`.
-3. Generate two random secrets (password manager or `openssl rand -hex 24`):
-   - `CHEM_SERVICE_SECRET` — shared by Vercel ↔ chem service
-   - `USAGE_STATS_TOKEN` — only you use this to read usage counts
+The server refuses to boot in production if `DATABASE_URL`, both Upstash variables, or `GROQ_API_KEY` are missing. JSON files in `data/cards/` are for local development only.
 
-## 2. Deploy Next.js on Vercel
+Rotate `GROQ_API_KEY` if it was ever pasted into chat, a screenshot, or a commit.
 
-1. Push the repo to GitHub (private is fine).
-2. [vercel.com](https://vercel.com) → Import project → select SciCard.
-3. Framework: Next.js (auto).
-4. **Environment variables** (Production + Preview):
+## 1. Database
 
-| Name | Value |
-|------|--------|
-| `GROQ_API_KEY` | your new Groq key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` |
-| `CHEM_SERVICE_URL` | `https://your-chem-host.example` (or leave blank until chem is up) |
-| `CHEM_SERVICE_SECRET` | same secret as chem host |
-| `USAGE_STATS_TOKEN` | private token for stats |
-
-5. Deploy. Open `https://your-project.vercel.app`.
-6. In Vercel → **Analytics** → enable Web Analytics (free hobby).
-
-Smoke checks:
+1. Create a free Neon project and copy the pooled connection string into `DATABASE_URL`.
+2. Apply the schema:
 
 ```bash
-curl https://your-project.vercel.app/api/health
-# {"ok":true,"service":"scicard","chemConfigured":true|false,"groqConfigured":true}
+psql "$DATABASE_URL" -f db/schema.sql
 ```
 
-## 3. Deploy chem service (optional for day-1)
+The app also runs `create table if not exists` on first use.
 
-If you skip this, equation + concept still work; reaction cards need the service.
+## 2. Redis
 
-1. Deploy `chem-service/` as a Python/Docker web service (Railway/Render/Fly).
-2. Start command example: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-3. Set env on chem host: `CHEM_SERVICE_SECRET=<same as Vercel>`.
-4. Set Vercel `CHEM_SERVICE_URL` to that public HTTPS URL (no trailing slash).
-5. Redeploy Vercel so the env change applies.
+1. Create a free Upstash Redis database.
+2. Copy the REST URL and token into the two `UPSTASH_REDIS_*` variables.
 
-Local chem (dev only):
+## 3. Deploy the Next.js app on Vercel
+
+1. Push the repo to GitHub. Confirm `.env.local` is not in the commit (`git status` should not list it).
+2. [vercel.com](https://vercel.com) → Import project → SciCard. Framework: Next.js.
+3. Add every variable above.
+4. Deploy.
+
+Smoke test:
+
+```bash
+curl https://YOUR_DOMAIN/api/health
+```
+
+Expect `"ok": true`, `"cardStore": "postgres"`, `"redisConfigured": true`, `"groqConfigured": true`.
+
+Then, on the site:
+
+- [ ] Home opens on an empty paste with three examples
+- [ ] Equation example renders
+- [ ] Teach me returns text, and a bad key does not show a provider payload
+- [ ] Edit the takeaway, then download PNG at 1.91:1, 1:1, and 4:5
+- [ ] Save card copies a `/c/...` link that opens the same card
+- [ ] `GET /api/cards` returns 404 (no public list)
+- [ ] A wrong `/?card=` shows an error on the page
+- [ ] Impressum shows your real name, address, and email
+- [ ] Datenschutz and Terms open
+- [ ] Reaction example draws when chem is deployed
+
+## 4. Deploy the chem service
+
+Skip this and equation plus concept cards still work. Reaction drawing needs the service.
+
+Railway or Render, root directory `chem-service/`:
+
+- Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Env: `CHEM_SERVICE_SECRET` set to the same value as Vercel
+- Then set Vercel `CHEM_SERVICE_URL` to that HTTPS origin and redeploy Vercel
+
+Local chemistry:
 
 ```bash
 npm run chem
-# CHEM_SERVICE_URL=http://127.0.0.1:8000
 ```
 
-## 4. How you know user count
+That uses `chem-service/.venv` when it exists (Windows or macOS/Linux) and otherwise `python -m uvicorn`.
 
-### A. Visitors (people)
+## 5. How to see usage
 
-- **Vercel Analytics** dashboard → unique visitors / page views after you enable it.
+Vercel Web Analytics counts visits without cookies. No consent banner.
 
-### B. Product actions (Teach me / export)
-
-- Client events: `teach_me`, `export_png` via `@vercel/analytics` (show under Analytics → Custom events when available).
-- Server counters (process-local, reset on cold start — early signal only):
+Teach me, export, chemistry, cache hits, and rate-limit hits:
 
 ```bash
-curl "https://your-project.vercel.app/api/health?stats=1&token=YOUR_USAGE_STATS_TOKEN"
+curl "https://YOUR_DOMAIN/api/health?stats=1&token=YOUR_USAGE_STATS_TOKEN"
 ```
 
-Returns roughly:
+Keep that URL private.
 
-```json
-{
-  "ok": true,
-  "usage": {
-    "startedAt": "...",
-    "explain": 12,
-    "explainCached": 40,
-    "export": 9,
-    "chem": 5,
-    "rateLimited": 0
-  }
-}
-```
-
-Later (when you outgrow this): PostHog / Umami / Supabase event table.
-
-## 5. Security already wired for soft launch
+## 6. What is already enforced
 
 | Control | Where |
 |---------|--------|
 | Groq key server-only | `/api/explain` |
-| Rate limits | explain 20/10m, export 40/10m, chem 60/10m per IP |
-| Input size caps | explain / chem routes |
-| Chem shared secret | `x-scicard-chem-secret` when `CHEM_SERVICE_SECRET` set |
-| Security headers | `next.config.mjs` (nosniff, frame deny, referrer) |
-| Usage stats gated | `USAGE_STATS_TOKEN` |
-
-## 6. Soft-launch day checklist
-
-- [ ] New Groq key in Vercel (old key revoked)
-- [ ] `/api/health` returns `groqConfigured: true`
-- [ ] Teach me works on production URL
-- [ ] PNG download works
-- [ ] Vercel Analytics enabled
-- [ ] Chem live **or** Reaction path labeled as beta
-- [ ] Tweet / LinkedIn link points at production URL
-- [ ] You bookmarked the `?stats=1&token=...` URL privately
-
-## 7. Day-1 vs later
-
-**Day 1 (free):** Vercel + Groq + Analytics + rate limits. Chemistry optional.
-
-**Later:** Upstash Redis rate limits (multi-region), auth/waitlist, durable analytics DB, custom domain.
+| Provider errors logged, not returned | explain, export, chem |
+| Rate limits | every API route, Redis in production |
+| Cards only by unguessable link | no public gallery |
+| Card ids | 16 random bytes, base64url |
+| Production database required | startup check |
+| Security headers | `next.config.mjs` |
+| AI mistake note | editor, public card, terms |
+| Impressum / Datenschutz / Terms | `/impressum`, `/datenschutz`, `/terms` |

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveRenderableSmiles } from "@/lib/chemLookup";
 import { rateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/reportError";
 import { trackUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
@@ -19,9 +20,9 @@ const CHEM_LIMIT = 60;
 const CHEM_WINDOW_MS = 10 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(req, "chem", CHEM_LIMIT, CHEM_WINDOW_MS);
+  const limited = await rateLimit(req, "chem", CHEM_LIMIT, CHEM_WINDOW_MS);
   if (!limited.ok) {
-    trackUsage("rateLimited");
+    await trackUsage("rateLimited");
     return NextResponse.json(
       {
         error: "Too many chemistry renders. Please wait a few minutes.",
@@ -86,10 +87,13 @@ export async function POST(req: NextRequest) {
 
     if (!upstream.ok) {
       const detail = await upstream.text().catch(() => "");
+      console.error("[render-chem] upstream", upstream.status, detail.slice(0, 500));
       return NextResponse.json(
         {
-          error: `Chem service error (${upstream.status})`,
-          detail: detail.slice(0, 500),
+          error:
+            upstream.status === 422
+              ? "This structure could not be drawn. Try a name, formula, or SMILES."
+              : "Chemistry drawing is unavailable right now.",
         },
         { status: upstream.status === 422 ? 422 : 502 }
       );
@@ -99,7 +103,7 @@ export async function POST(req: NextRequest) {
       upstream.headers.get("content-type") ||
       (format === "png" ? "image/png" : "image/svg+xml");
     const buf = Buffer.from(await upstream.arrayBuffer());
-    trackUsage("chem");
+    await trackUsage("chem");
 
     return new NextResponse(buf, {
       status: 200,
@@ -111,18 +115,9 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[render-chem]", err);
-    const message =
-      err instanceof Error ? err.message : "Chem render proxy failed";
-    const unreachable =
-      /ECONNREFUSED|fetch failed|ENOTFOUND/i.test(message) ||
-      (err instanceof TypeError && message.includes("fetch"));
+    await reportError(err, { route: "render-chem" });
     return NextResponse.json(
-      {
-        error: unreachable
-          ? "Chem service unreachable. Start chem-service on port 8000."
-          : message,
-      },
+      { error: "Chemistry drawing is unavailable right now." },
       { status: 502 }
     );
   }

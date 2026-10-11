@@ -37,6 +37,7 @@ export default function ThemeControls({
               <button
                 key={opt.id}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => onModeChange(opt.id)}
                 className={[
                   "rounded-[5px] px-3 py-1.5 text-sm transition-colors",

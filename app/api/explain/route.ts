@@ -9,7 +9,12 @@ import {
   parseExplanation,
   type Explanation,
 } from "@/lib/explain";
+import {
+  readExplanationCache,
+  writeExplanationCache,
+} from "@/lib/explainCache";
 import { rateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/reportError";
 import { trackUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
@@ -24,9 +29,6 @@ type ExplainBody = {
   input?: string;
   detectedType?: ContentType;
 };
-
-/** In-memory cache keyed by hash(model + detectedType + raw input) */
-const cache = new Map<string, Explanation>();
 
 const VALID_TYPES: ContentType[] = ["equation", "reaction", "concept"];
 
@@ -59,11 +61,8 @@ async function callGroq(
 
   if (!groqRes.ok) {
     const errText = await groqRes.text().catch(() => "");
-    console.error("[explain] Groq error", groqRes.status, errText);
-    throw Object.assign(new Error(`Groq API error (${groqRes.status})`), {
-      status: 502,
-      detail: errText.slice(0, 500),
-    });
+    console.error("[explain] provider error", groqRes.status, errText.slice(0, 500));
+    throw new Error("Teach me is unavailable right now.");
   }
 
   const data = (await groqRes.json()) as {
@@ -71,15 +70,15 @@ async function callGroq(
   };
   const content = data.choices?.[0]?.message?.content;
   if (!content?.trim()) {
-    throw Object.assign(new Error("Empty response from Groq"), { status: 502 });
+    throw new Error("Teach me is unavailable right now.");
   }
   return content;
 }
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(req, "explain", EXPLAIN_LIMIT, EXPLAIN_WINDOW_MS);
+  const limited = await rateLimit(req, "explain", EXPLAIN_LIMIT, EXPLAIN_WINDOW_MS);
   if (!limited.ok) {
-    trackUsage("rateLimited");
+    await trackUsage("rateLimited");
     return NextResponse.json(
       {
         error: "Too many Teach me requests. Please wait a few minutes.",
@@ -93,7 +92,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GROQ_API_KEY is not configured on the server" },
+        { error: "Teach me is not available right now." },
         { status: 500 }
       );
     }
@@ -120,9 +119,9 @@ export async function POST(req: NextRequest) {
 
     const model = process.env.GROQ_MODEL || DEFAULT_GROQ_MODEL;
     const cacheKey = hashInput(input, detectedType, model);
-    const cached = cache.get(cacheKey);
+    const cached = await readExplanationCache(cacheKey);
     if (cached) {
-      trackUsage("explainCached");
+      await trackUsage("explainCached");
       return NextResponse.json(
         { explanation: cached, cached: true },
         { headers: rateLimitHeaders(limited) }
@@ -156,44 +155,29 @@ export async function POST(req: NextRequest) {
     }
 
     if (!explanation) {
-      console.error("[explain] JSON validation failed", raw, parseError);
+      await reportError(parseError, { route: "explain" });
+      console.error("[explain] validation failed");
       return NextResponse.json(
-        {
-          error: "Model returned invalid JSON after validation",
-          detail:
-            parseError instanceof Error ? parseError.message : "parse failed",
-          raw: raw.slice(0, 800),
-        },
+        { error: "Teach me could not explain that yet. Try a shorter paste." },
         { status: 502 }
       );
     }
 
-    cache.set(cacheKey, explanation);
-    trackUsage("explain");
+    await writeExplanationCache(cacheKey, explanation);
+    await trackUsage("explain");
 
     return NextResponse.json(
       {
         explanation,
         cached: false,
-        provider: "groq",
-        model,
       },
       { headers: rateLimitHeaders(limited) }
     );
   } catch (err) {
-    console.error("[explain]", err);
-    const status =
-      err && typeof err === "object" && "status" in err
-        ? Number((err as { status: number }).status)
-        : 500;
-    const detail =
-      err && typeof err === "object" && "detail" in err
-        ? String((err as { detail: string }).detail)
-        : undefined;
-    const message = err instanceof Error ? err.message : "Explain failed";
+    await reportError(err, { route: "explain" });
     return NextResponse.json(
-      { error: message, detail },
-      { status: status || 500 }
+      { error: "Teach me is unavailable right now. Try again in a moment." },
+      { status: 502 }
     );
   }
 }

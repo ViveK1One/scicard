@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomBytes } from "crypto";
 import { getChemKind, type ChemKind, type ContentType } from "@/lib/detectType";
 import type { Explanation } from "@/lib/explain";
 import type { AspectRatioId } from "@/lib/aspectRatios";
@@ -58,7 +58,7 @@ export function createCardRecord(input: {
   const text = input.input.trim();
   const contentType = input.contentType;
   return {
-    id: input.id ?? randomUUID(),
+    id: input.id ?? randomBytes(16).toString("base64url"),
     createdAt: input.createdAt ?? now,
     updatedAt: now,
     input: text,

@@ -3,8 +3,21 @@ import path from "path";
 import { isCardRecord, type CardRecord } from "@/lib/cardRecord";
 
 const DIR = path.join(process.cwd(), "data", "cards");
+/** UUID links already shared, plus new 22-character unguessable ids. */
 const ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[A-Za-z0-9_-]{16,64})$/i;
+
+function assertProductionDatabase() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.NEXT_PHASE !== "phase-production-build" &&
+    !process.env.DATABASE_URL?.trim()
+  ) {
+    throw new Error(
+      "DATABASE_URL is required in production. JSON files in data/cards are for local development only."
+    );
+  }
+}
 
 type Sql = import("postgres").Sql;
 let sqlClient: Sql | null = null;
@@ -62,6 +75,7 @@ function asCard(value: unknown): CardRecord | null {
 }
 
 export async function saveCard(card: CardRecord): Promise<CardRecord> {
+  assertProductionDatabase();
   const sql = await db();
   if (sql) {
     await sql`
@@ -80,6 +94,7 @@ export async function saveCard(card: CardRecord): Promise<CardRecord> {
 }
 
 export async function readCard(id: string): Promise<CardRecord | null> {
+  assertProductionDatabase();
   if (!ID_RE.test(id)) return null;
   const sql = await db();
   if (sql) {

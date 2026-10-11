@@ -26,9 +26,13 @@ Open [http://localhost:3000](http://localhost:3000).
 | Command | Purpose |
 |---------|---------|
 | `npm run dev` | Next.js app |
-| `npm run chem` | Chem microservice (Windows venv path) |
-| `npm run test:detect` | Content-type detector tests |
+| `npm run chem` | Chem microservice (Windows, macOS, or Linux) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript |
+| `npm test` | Content-type detector tests |
 | `npm run build` | Production build |
+
+Deploy steps and every environment variable are in **[LAUNCH.md](./LAUNCH.md)**.
 
 ## Free launch
 
@@ -42,4 +46,5 @@ See **[LAUNCH.md](./LAUNCH.md)** for:
 
 - Next.js 14 + TypeScript + Tailwind
 - KaTeX equations · RDKit chem service · Groq (Llama 3.3) Teach me
-- Satori + resvg PNG export · Vercel Analytics
+- Satori + resvg PNG export · cookie-free Vercel Analytics
+- Saved cards: Postgres in production, JSON files locally

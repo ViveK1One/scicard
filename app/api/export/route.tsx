@@ -7,6 +7,7 @@ import { resolveThemeColors } from "@/lib/themes";
 import type { Explanation } from "@/lib/explain";
 import { getChemKind } from "@/lib/detectType";
 import { rateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { reportError } from "@/lib/reportError";
 import { trackUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
@@ -403,9 +404,9 @@ function SciCardExportSvg({
 }
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(req, "export", EXPORT_LIMIT, EXPORT_WINDOW_MS);
+  const limited = await rateLimit(req, "export", EXPORT_LIMIT, EXPORT_WINDOW_MS);
   if (!limited.ok) {
-    trackUsage("rateLimited");
+    await trackUsage("rateLimited");
     return NextResponse.json(
       {
         error: "Too many exports. Please wait a few minutes.",
@@ -518,7 +519,7 @@ export async function POST(req: NextRequest) {
         : { background: colors.surface }),
     });
     const png = resvg.render().asPng();
-    trackUsage("export");
+    await trackUsage("export");
 
     return new NextResponse(Buffer.from(png), {
       status: 200,
@@ -532,8 +533,10 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("[export]", err);
-    const message = err instanceof Error ? err.message : "Export failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    await reportError(err, { route: "export" });
+    return NextResponse.json(
+      { error: "Could not export this card. Try again." },
+      { status: 500 }
+    );
   }
 }

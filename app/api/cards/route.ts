@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cardTitle, createCardRecord, isCardRecord } from "@/lib/cardRecord";
+import { createCardRecord, isCardRecord } from "@/lib/cardRecord";
 import type { ContentType } from "@/lib/detectType";
 import type { Explanation } from "@/lib/explain";
-import { listCards, saveCard } from "@/lib/cardStore";
+import { saveCard } from "@/lib/cardStore";
 import { rateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -10,21 +10,22 @@ export const dynamic = "force-dynamic";
 
 const VALID: ContentType[] = ["equation", "reaction", "concept"];
 
-export async function GET() {
-  const cards = await listCards(24);
-  return NextResponse.json({
-    cards: cards.map((card) => ({
-      id: card.id,
-      title: cardTitle(card),
-      contentType: card.contentType,
-      takeaway: card.explanation?.takeaway ?? null,
-      updatedAt: card.updatedAt,
-    })),
-  });
+export async function GET(req: NextRequest) {
+  const limited = await rateLimit(req, "cards-list", 30, 10 * 60 * 1000);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Wait a few minutes." },
+      { status: 429, headers: rateLimitHeaders(limited) }
+    );
+  }
+  return NextResponse.json(
+    { error: "Cards are only available by their private link." },
+    { status: 404 }
+  );
 }
 
 export async function POST(req: NextRequest) {
-  const limited = rateLimit(req, "cards", 30, 10 * 60 * 1000);
+  const limited = await rateLimit(req, "cards", 30, 10 * 60 * 1000);
   if (!limited.ok) {
     return NextResponse.json(
       { error: "Too many saves. Wait a few minutes." },

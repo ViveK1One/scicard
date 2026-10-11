@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Analytics } from "@vercel/analytics/react";
+import ClientErrorReporter from "@/components/ClientErrorReporter";
+import SiteFooter from "@/components/SiteFooter";
 import "katex/dist/katex.min.css";
 import "./globals.css";
 
@@ -31,7 +33,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-[family-name:var(--font-geist-sans)] antialiased`}
       >
+        <ClientErrorReporter />
         {children}
+        <SiteFooter />
+        {/* Vercel Web Analytics is cookie-free. No consent banner. */}
         <Analytics />
       </body>
     </html>

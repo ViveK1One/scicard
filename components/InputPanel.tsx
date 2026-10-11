@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { ContentType, detectType } from "@/lib/detectType";
 
 const TYPE_OPTIONS: { value: ContentType; label: string }[] = [
@@ -54,6 +54,19 @@ export default function InputPanel({
     onContentTypeChange(type);
   }
 
+  function handleTabKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+    event.preventDefault();
+    const index = TYPE_OPTIONS.findIndex((option) => option.value === contentType);
+    const direction = event.key === "ArrowRight" ? 1 : -1;
+    const next = TYPE_OPTIONS[(index + direction + TYPE_OPTIONS.length) % TYPE_OPTIONS.length];
+    handleTypeSelect(next.value);
+    const tab = event.currentTarget.querySelector<HTMLButtonElement>(
+      `[data-type="${next.value}"]`
+    );
+    tab?.focus();
+  }
+
   /** Re-enable detectType and apply it immediately to the current paste. */
   function handleResetAutoDetect() {
     onManualOverrideChange(false);
@@ -68,6 +81,7 @@ export default function InputPanel({
         <div
           role="tablist"
           aria-label="Content type"
+          onKeyDown={handleTabKey}
           className="inline-flex rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5"
         >
           {TYPE_OPTIONS.map(({ value: option, label }) => {
@@ -77,7 +91,9 @@ export default function InputPanel({
                 key={option}
                 type="button"
                 role="tab"
+                data-type={option}
                 aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
                 onClick={() => handleTypeSelect(option)}
                 className={[
                   "rounded-[5px] px-3.5 py-1.5 text-sm tracking-wide transition-colors",

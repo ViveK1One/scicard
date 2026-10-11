@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rateLimit";
+import { reportError } from "@/lib/reportError";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import { cardTitle } from "@/lib/cardRecord";
@@ -10,10 +12,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const card = await readCard(params.id);
+  const limited = await rateLimit(req, "card-og", 60, 10 * 60 * 1000);
+  if (!limited.ok) {
+    return new NextResponse("Too many requests.", { status: 429 });
+  }
+
+  let card;
+  try {
+    card = await readCard(params.id);
+  } catch (err) {
+    await reportError(err, { route: "card-og" });
+    return new NextResponse("Preview unavailable.", { status: 500 });
+  }
   const colors = resolveThemeColors(
     card?.themeMode ?? "light",
     card?.themeAccent ?? "graphite"

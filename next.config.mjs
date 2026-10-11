@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Native binary — must not be webpack-bundled
-    serverComponentsExternalPackages: ["@resvg/resvg-js"],
+    instrumentationHook: true,
+    // Native binaries — must not be webpack-bundled
+    serverComponentsExternalPackages: ["@resvg/resvg-js", "postgres"],
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
