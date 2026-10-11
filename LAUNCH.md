@@ -14,13 +14,13 @@ Set these on Vercel for Production and Preview. Copy names from `.env.example`.
 | `UPSTASH_REDIS_REST_URL` | yes | Rate limit, explanation cache, usage counts |
 | `UPSTASH_REDIS_REST_TOKEN` | yes | Upstash token |
 | `CHEM_SERVICE_URL` | for reactions | Public HTTPS URL of the chem host, no trailing slash |
-| `CHEM_SERVICE_SECRET` | when chem is public | Same value on Vercel and the chem host |
-| `USAGE_STATS_TOKEN` | recommended | Gates `GET /api/health?stats=1&token=` |
+| `CHEM_SERVICE_SECRET` | yes, if chem is on the internet | Same value on Vercel and the chem host. Without it, only localhost can render. |
+| `USAGE_STATS_TOKEN` | recommended | Gates usage stats. Send as `Authorization: Bearer`, never in the URL. |
 | `IMPRESSUM_NAME` | yes, before public traffic | Operator name |
 | `IMPRESSUM_ADDRESS` | yes, before public traffic | Postal address. Use `\n` between lines |
 | `IMPRESSUM_EMAIL` | yes, before public traffic | Contact email |
-| `SENTRY_DSN` | optional | Server error tracking |
-| `NEXT_PUBLIC_SENTRY_DSN` | optional | Same DSN, for browser errors |
+
+Next.js stays on 14.2.35, the last 14.2 release. The current major is 16. Moving there changes page `params` and `headers()` and is a separate upgrade.
 
 The server refuses to boot in production if `DATABASE_URL`, both Upstash variables, or `GROQ_API_KEY` are missing. JSON files in `data/cards/` are for local development only.
 
@@ -77,8 +77,9 @@ Skip this and equation plus concept cards still work. Reaction drawing needs the
 Railway or Render, root directory `chem-service/`:
 
 - Start: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Env: `CHEM_SERVICE_SECRET` set to the same value as Vercel
-- Then set Vercel `CHEM_SERVICE_URL` to that HTTPS origin and redeploy Vercel
+- Env: `CHEM_SERVICE_SECRET` set to the same value as Vercel. A public chem host without this secret refuses every render. Localhost still works without it.
+- Then set Vercel `CHEM_SERVICE_URL` to that HTTPS origin and redeploy Vercel.
+- Reaction drawing stays labeled beta in the editor. Uncommon names can fail.
 
 Local chemistry:
 
@@ -95,7 +96,7 @@ Vercel Web Analytics counts visits without cookies. No consent banner.
 Teach me, export, chemistry, cache hits, and rate-limit hits:
 
 ```bash
-curl "https://YOUR_DOMAIN/api/health?stats=1&token=YOUR_USAGE_STATS_TOKEN"
+curl -H "Authorization: Bearer YOUR_USAGE_STATS_TOKEN" "https://YOUR_DOMAIN/api/health?stats=1"
 ```
 
 Keep that URL private.

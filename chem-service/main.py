@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -28,13 +28,26 @@ app.add_middleware(
 )
 
 
+def _is_loopback(request: Request) -> bool:
+    host = request.client.host if request.client else ""
+    return host in {"127.0.0.1", "::1"}
+
+
 async def require_chem_secret(
+    request: Request,
     x_scicard_chem_secret: str | None = Header(default=None),
 ) -> None:
-    if not _CHEM_SECRET:
+    """Localhost may render without a secret. Any other caller must send it."""
+    if _CHEM_SECRET:
+        if not x_scicard_chem_secret or x_scicard_chem_secret != _CHEM_SECRET:
+            raise HTTPException(status_code=401, detail="Unauthorized")
         return
-    if not x_scicard_chem_secret or x_scicard_chem_secret != _CHEM_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    if _is_loopback(request):
+        return
+    raise HTTPException(
+        status_code=401,
+        detail="CHEM_SERVICE_SECRET is required",
+    )
 
 
 class RenderRequest(BaseModel):

@@ -7,9 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Public health + optional usage (gated by USAGE_STATS_TOKEN).
- * - GET /api/health → { ok: true }
- * - GET /api/health?stats=1&token=... → usage counters when token matches
+ * Public health. Usage counters require Authorization: Bearer <USAGE_STATS_TOKEN>.
+ * The token is not accepted in the query string, so it does not land in access logs.
  */
 export async function GET(req: NextRequest) {
   const limited = await rateLimit(req, "health", 120, 10 * 60 * 1000);
@@ -22,7 +21,19 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const wantStats = url.searchParams.get("stats") === "1";
-  const token = url.searchParams.get("token") || "";
+  if (wantStats && url.searchParams.get("token")) {
+    return NextResponse.json(
+      {
+        error:
+          "Send the usage token as Authorization: Bearer, not in the URL.",
+      },
+      { status: 400 }
+    );
+  }
+  const header = req.headers.get("authorization") || "";
+  const token = header.toLowerCase().startsWith("bearer ")
+    ? header.slice(7).trim()
+    : "";
   const expected = process.env.USAGE_STATS_TOKEN || "";
 
   if (wantStats && expected && token === expected) {
@@ -40,6 +51,5 @@ export async function GET(req: NextRequest) {
     groqConfigured: Boolean(process.env.GROQ_API_KEY),
     cardStore: cardStoreKind(),
     redisConfigured: redisConfigured(),
-    sentryConfigured: Boolean(process.env.SENTRY_DSN),
   });
 }

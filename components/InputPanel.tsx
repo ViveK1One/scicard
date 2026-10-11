@@ -136,6 +136,9 @@ export default function InputPanel({
         {manualOverride
           ? "Type locked manually — switch tabs or restore auto-detect."
           : "Type auto-selected from your paste — override anytime."}
+        {contentType === "reaction"
+          ? " Structure drawing is in beta and can fail on uncommon names."
+          : ""}
       </p>
     </section>
   );

@@ -4,7 +4,7 @@ import type { ContentType } from "@/lib/detectType";
 
 const CHOICES: { type: ContentType; label: string; hint: string }[] = [
   { type: "equation", label: "Equation", hint: "Heat exchanger formula" },
-  { type: "reaction", label: "Reaction", hint: "Methane combustion" },
+  { type: "reaction", label: "Reaction · beta", hint: "Methane combustion" },
   { type: "concept", label: "Concept", hint: "Le Chatelier's principle" },
 ];
 

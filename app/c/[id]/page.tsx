@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import SavedCardView from "@/components/SavedCardView";
 import { cardTitle } from "@/lib/cardRecord";
+import { limitCardPage } from "@/lib/cardPageLimit";
 import { readCard } from "@/lib/cardStore";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,10 @@ export async function generateMetadata({
 }: {
   params: { id: string };
 }): Promise<Metadata> {
+  const limited = await limitCardPage();
+  if (!limited.ok) {
+    return { title: "SciCard" };
+  }
   const card = await readCard(params.id);
   if (!card) {
     return { title: "Card not found — SciCard" };
@@ -44,6 +49,14 @@ export async function generateMetadata({
   };
 }
 
-export default function CardPage({ params }: { params: { id: string } }) {
+export default async function CardPage({ params }: { params: { id: string } }) {
+  const limited = await limitCardPage();
+  if (!limited.ok) {
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-16 text-sm text-[var(--ink)]">
+        <p>Too many requests. Wait a few minutes and open the link again.</p>
+      </main>
+    );
+  }
   return <SavedCardView id={params.id} />;
 }
